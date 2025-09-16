@@ -1,0 +1,688 @@
+'''
+Setup instructions:
+cd sc2001_lab1
+python3 -m venv venv  
+source venv/bin/activate  
+python "/Users/bradleygoh/SC2001 lab1.py" 
+'''
+import random
+import time
+import matplotlib.pyplot as plt
+import numpy as np
+from typing import List, Tuple
+
+# Ensure matplotlib uses an interactive backend
+plt.ion()  # Turn on interactive mode
+
+# Global variable to count comparisons
+comparison_count = 0
+
+def reset_comparison_count():
+    """Reset the global comparison counter"""
+    global comparison_count
+    comparison_count = 0
+
+def get_comparison_count():
+    """Get the current comparison count"""
+    global comparison_count
+    return comparison_count
+
+def merge(left_array, right_array):
+    """Merge two sorted arrays with comparison counting"""
+    global comparison_count
+    sorted_arr = []
+    left_ptr, right_ptr = 0, 0
+    
+    while left_ptr < len(left_array) and right_ptr < len(right_array):
+        comparison_count += 1  # Count the comparison
+        if left_array[left_ptr] <= right_array[right_ptr]:  # Use <= for stability
+            sorted_arr.append(left_array[left_ptr])
+            left_ptr += 1
+        else:
+            sorted_arr.append(right_array[right_ptr])
+            right_ptr += 1
+    
+    # Add remaining elements
+    sorted_arr.extend(left_array[left_ptr:])
+    sorted_arr.extend(right_array[right_ptr:])
+    return sorted_arr
+
+def insertion_sort(arr):
+    """Insertion sort with comparison counting"""
+    global comparison_count
+    arr = arr.copy()  # Don't modify original array
+    
+    for i in range(1, len(arr)):
+        key = arr[i]
+        j = i - 1
+        while j >= 0:
+            comparison_count += 1  # Count the comparison
+            if arr[j] > key:
+                arr[j + 1] = arr[j]
+                j -= 1
+            else:
+                break
+        arr[j + 1] = key
+    return arr
+
+def hybrid_merge_sort(arr, s):
+    """Hybrid merge sort implementation - main entry point"""
+    if len(arr) <= s:
+        return insertion_sort(arr)
+    
+    mid = len(arr) // 2
+    left = arr[:mid]
+    right = arr[mid:]
+    
+    left_sorted = hybrid_merge_sort(left, s)
+    right_sorted = hybrid_merge_sort(right, s)
+    
+    return merge(left_sorted, right_sorted)
+
+def original_merge_sort(arr):
+    """Original merge sort without threshold"""
+    global comparison_count
+    if len(arr) <= 1:
+        return arr
+    
+    mid = len(arr) // 2
+    left = arr[:mid]
+    right = arr[mid:]
+    
+    left_sorted = original_merge_sort(left)
+    right_sorted = original_merge_sort(right)
+    
+    return merge(left_sorted, right_sorted)
+
+# Part (b): Generate input data as specified in project
+def generate_random_array(size, max_value=10000000):
+    """Generate random array of given size with integers in range [1, x]"""
+    return [random.randint(1, max_value) for _ in range(size)]
+
+def generate_datasets():
+    """Generate arrays of increasing sizes from 1,000 to 10 million as per project spec"""
+    # Create comprehensive size range as specified
+    sizes = []
+    
+    # 1K to 10K range
+    for i in range(1000, 11000, 1000):
+        sizes.append(i)
+    
+    # 10K to 100K range  
+    for i in range(20000, 101000, 10000):
+        sizes.append(i)
+    
+    # 100K to 1M range
+    for i in range(200000, 1001000, 100000):
+        sizes.append(i)
+    
+    # 1M to 10M range
+    for i in range(2000000, 10001000, 1000000):
+        sizes.append(i)
+    
+    return sorted(list(set(sizes)))  # Remove duplicates and sort
+
+# Part (c): Analysis functions
+
+def analyze_fixed_s_variable_n(s_value=16, use_full_range=False):
+    """Part (c)(i): Fixed S, variable n analysis"""
+    print(f"\nPart (c)(i): Analyzing with fixed S = {s_value}")
+    
+    if use_full_range:
+        # Full range as per project specification
+        sizes = generate_datasets()
+        # Limit to reasonable size for analysis
+        sizes = [s for s in sizes if s <= 1000000]  # Up to 1M for reasonable runtime
+    else:
+        # Reduced range for faster testing
+        sizes = [1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000]
+    
+    comparisons = []
+    times = []
+    
+    print("Testing sizes:", sizes)
+    
+    for i, size in enumerate(sizes):
+        print(f"Progress: {i+1}/{len(sizes)} - Testing size: {size:,}")
+        arr = generate_random_array(size)
+        
+        # Measure comparisons and time
+        reset_comparison_count()
+        start_time = time.time()
+        sorted_arr = hybrid_merge_sort(arr.copy(), s_value)
+        end_time = time.time()
+        
+        comparisons.append(get_comparison_count())
+        times.append(end_time - start_time)
+        
+        # Verify sorting correctness
+        assert sorted_arr == sorted(arr), f"Sorting failed for size {size}"
+    
+    # Plot results with theoretical comparison
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
+    
+    # Plot 1: Comparisons vs Theoretical
+    ax1.plot(sizes, comparisons, 'bo-', label='Empirical (Hybrid)', linewidth=2, markersize=8)
+    
+    # Theoretical O(n log n) - adjusted for hybrid algorithm
+    theoretical = [n * np.log2(n) for n in sizes]
+    ax1.plot(sizes, theoretical, 'r--', label='Theoretical O(n log n)', linewidth=2)
+    
+    ax1.set_xlabel('Input Size (n)', fontsize=12)
+    ax1.set_ylabel('Number of Key Comparisons', fontsize=12)
+    ax1.set_title(f'Key Comparisons vs Input Size (S={s_value})', fontsize=14)
+    ax1.legend(fontsize=10)
+    ax1.grid(True, alpha=0.3)
+    ax1.set_xscale('log')
+    ax1.set_yscale('log')
+    
+    # Plot 2: Runtime
+    ax2.plot(sizes, times, 'go-', linewidth=2, markersize=8)
+    ax2.set_xlabel('Input Size (n)', fontsize=12)
+    ax2.set_ylabel('CPU Time (seconds)', fontsize=12)
+    ax2.set_title(f'Runtime vs Input Size (S={s_value})', fontsize=14)
+    ax2.grid(True, alpha=0.3)
+    ax2.set_xscale('log')
+    ax2.set_yscale('log')
+    
+    plt.tight_layout()
+    plt.show(block=False)
+    plt.pause(0.1)
+    
+    # Print analysis
+    print("\nEmpirical vs Theoretical Analysis:")
+    print(f"{'Size':<10} {'Empirical':<12} {'Theoretical':<12} {'Ratio':<8}")
+    print("-" * 45)
+    for i, size in enumerate(sizes[:5]):  # Show first 5 for brevity
+        ratio = comparisons[i] / theoretical[i] if theoretical[i] > 0 else 0
+        print(f"{size:<10} {comparisons[i]:<12} {theoretical[i]:<12.0f} {ratio:<8.3f}")
+    
+    return sizes, comparisons, times
+
+def analyze_fixed_n_variable_s(n_value=50000, use_full_range=False):
+    """Part (c)(ii): Fixed n, variable S analysis"""
+    print(f"\nPart (c)(ii): Analyzing with fixed n = {n_value:,}")
+    
+    if use_full_range:
+        # Comprehensive S range
+        s_values = list(range(1, 101, 2))  # 1, 3, 5, ..., 99
+    else:
+        # Focused S range for faster analysis
+        s_values = list(range(1, 51, 2)) + list(range(50, 101, 5))
+    
+    comparisons = []
+    times = []
+    
+    # Generate dataset once for consistency
+    arr = generate_random_array(n_value)
+    print(f"Generated dataset of size {len(arr):,}")
+    
+    for i, s in enumerate(s_values):
+        print(f"Progress: {i+1}/{len(s_values)} - Testing S = {s}")
+        
+        reset_comparison_count()
+        start_time = time.time()
+        sorted_arr = hybrid_merge_sort(arr.copy(), s)
+        end_time = time.time()
+        
+        comparisons.append(get_comparison_count())
+        times.append(end_time - start_time)
+        
+        # Verify correctness for first few iterations
+        if i < 3:
+            assert sorted_arr == sorted(arr), f"Sorting failed for S = {s}"
+    
+    # Plot results
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
+    
+    # Plot 1: Comparisons
+    ax1.plot(s_values, comparisons, 'bo-', linewidth=2, markersize=6)
+    ax1.set_xlabel('Threshold S', fontsize=12)
+    ax1.set_ylabel('Number of Key Comparisons', fontsize=12)
+    ax1.set_title(f'Key Comparisons vs Threshold S (n={n_value:,})', fontsize=14)
+    ax1.grid(True, alpha=0.3)
+    
+    # Plot 2: Runtime
+    ax2.plot(s_values, times, 'ro-', linewidth=2, markersize=6)
+    ax2.set_xlabel('Threshold S', fontsize=12)
+    ax2.set_ylabel('CPU Time (seconds)', fontsize=12)
+    ax2.set_title(f'Runtime vs Threshold S (n={n_value:,})', fontsize=14)
+    ax2.grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    plt.show(block=False)
+    plt.pause(0.1)
+    
+    # Find optimal S values
+    min_comparison_idx = np.argmin(comparisons)
+    min_time_idx = np.argmin(times)
+    
+    print(f"\nOptimal S Analysis:")
+    print(f"Minimum comparisons: S = {s_values[min_comparison_idx]} ({comparisons[min_comparison_idx]:,} comparisons)")
+    print(f"Minimum time: S = {s_values[min_time_idx]} ({times[min_time_idx]:.4f} seconds)")
+    
+    return s_values, comparisons, times, s_values[min_time_idx]
+
+def find_optimal_s_multiple_sizes():
+    """Part (c)(iii): Find optimal S for different input sizes"""
+    print("\nPart (c)(iii): Finding optimal S for multiple input sizes")
+    
+    # Test different input sizes
+    test_sizes = [10000, 25000, 50000, 100000, 200000, 500000]
+    s_range = list(range(5, 101, 5))  # S from 5 to 100, step 5
+    
+    optimal_s_values = []
+    size_results = {}
+    
+    for size_idx, size in enumerate(test_sizes):
+        print(f"\nProgress: {size_idx+1}/{len(test_sizes)} - Analyzing size {size:,}")
+        arr = generate_random_array(size)
+        
+        best_time = float('inf')
+        best_comparisons = float('inf')
+        optimal_s_time = 0
+        optimal_s_comp = 0
+        size_times = []
+        size_comparisons = []
+        
+        for s in s_range:
+            reset_comparison_count()
+            start_time = time.time()
+            hybrid_merge_sort(arr.copy(), s)
+            end_time = time.time()
+            
+            runtime = end_time - start_time
+            comps = get_comparison_count()
+            
+            size_times.append(runtime)
+            size_comparisons.append(comps)
+            
+            if runtime < best_time:
+                best_time = runtime
+                optimal_s_time = s
+            
+            if comps < best_comparisons:
+                best_comparisons = comps
+                optimal_s_comp = s
+        
+        # Store results for this size
+        size_results[size] = {
+            'times': size_times,
+            'comparisons': size_comparisons,
+            'optimal_s_time': optimal_s_time,
+            'optimal_s_comp': optimal_s_comp
+        }
+        
+        optimal_s_values.append(optimal_s_time)
+        print(f"Optimal S for size {size:,}: {optimal_s_time} (time), {optimal_s_comp} (comparisons)")
+    
+    # Plot optimal S vs input size
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
+    
+    # Plot 1: Optimal S vs Size
+    ax1.plot(test_sizes, optimal_s_values, 'bo-', linewidth=2, markersize=8)
+    ax1.set_xlabel('Input Size', fontsize=12)
+    ax1.set_ylabel('Optimal S (for runtime)', fontsize=12)
+    ax1.set_title('Optimal Threshold S vs Input Size', fontsize=14)
+    ax1.grid(True, alpha=0.3)
+    ax1.set_xscale('log')
+    
+    # Plot 2: Performance surface for largest size
+    largest_size = max(test_sizes)
+    ax2.plot(s_range, size_results[largest_size]['times'], 'g-', linewidth=2, 
+             label=f'Runtime (n={largest_size:,})')
+    ax2_twin = ax2.twinx()
+    ax2_twin.plot(s_range, size_results[largest_size]['comparisons'], 'r--', linewidth=2, 
+                  label=f'Comparisons (n={largest_size:,})')
+    
+    ax2.set_xlabel('Threshold S', fontsize=12)
+    ax2.set_ylabel('Runtime (seconds)', fontsize=12, color='green')
+    ax2_twin.set_ylabel('Comparisons', fontsize=12, color='red')
+    ax2.set_title(f'Performance vs S (n={largest_size:,})', fontsize=14)
+    ax2.grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    plt.show(block=False)
+    plt.pause(0.1)
+    
+    # Calculate recommended optimal S
+    avg_optimal_s = int(np.mean(optimal_s_values))
+    median_optimal_s = int(np.median(optimal_s_values))
+    
+    print(f"\nOptimal S Summary:")
+    print(f"Average optimal S: {avg_optimal_s}")
+    print(f"Median optimal S: {median_optimal_s}")
+    print(f"Range: {min(optimal_s_values)} - {max(optimal_s_values)}")
+    
+    return median_optimal_s
+
+def compare_with_original_mergesort(optimal_s, size=10000000):
+    """Part (d): Compare hybrid with original merge sort on large dataset"""
+    print(f"\nPart (d): Comparing algorithms on {size:,} elements")
+    print(f"Using optimal S = {optimal_s}")
+    
+    # Generate large dataset
+    print("Generating large dataset...")
+    arr = generate_random_array(size, max_value=size)  # x = size as suggested
+    print(f"Generated array with {len(arr):,} elements, max value: {size}")
+    
+    # Test hybrid merge sort
+    print("Testing hybrid merge sort...")
+    reset_comparison_count()
+    start_time = time.time()
+    hybrid_result = hybrid_merge_sort(arr.copy(), optimal_s)
+    hybrid_time = time.time() - start_time
+    hybrid_comparisons = get_comparison_count()
+    
+    # Test original merge sort
+    print("Testing original merge sort...")
+    reset_comparison_count()
+    start_time = time.time()
+    original_result = original_merge_sort(arr.copy())
+    original_time = time.time() - start_time
+    original_comparisons = get_comparison_count()
+    
+    # Verify correctness
+    print("Verifying sorting correctness...")
+    assert len(hybrid_result) == len(original_result), "Result lengths don't match"
+    
+    # For very large arrays, check if both are sorted rather than comparing element-wise
+    def is_sorted(arr):
+        return all(arr[i] <= arr[i+1] for i in range(len(arr)-1))
+    
+    assert is_sorted(hybrid_result), "Hybrid sort result is not sorted"
+    assert is_sorted(original_result), "Original sort result is not sorted"
+    print("✓ Both algorithms produced correctly sorted results")
+    
+    # Create comparison visualization
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
+    
+    # Comparisons bar chart
+    methods = ['Hybrid\nMerge Sort\n(S=' + str(optimal_s) + ')', 'Original\nMerge Sort']
+    comparison_counts = [hybrid_comparisons, original_comparisons]
+    colors = ['blue', 'red']
+    bars1 = ax1.bar(methods, comparison_counts, color=colors, alpha=0.7, width=0.6)
+    ax1.set_ylabel('Number of Key Comparisons', fontsize=12)
+    ax1.set_title(f'Key Comparison Count (n={size:,})', fontsize=14)
+    ax1.grid(True, alpha=0.3, axis='y')
+    
+    # Add value labels on bars
+    for bar, count in zip(bars1, comparison_counts):
+        height = bar.get_height()
+        ax1.text(bar.get_x() + bar.get_width()/2., height + max(comparison_counts) * 0.01,
+                f'{count:,}', ha='center', va='bottom', fontsize=10, weight='bold')
+    
+    # Runtime bar chart
+    runtimes = [hybrid_time, original_time]
+    bars2 = ax2.bar(methods, runtimes, color=['green', 'orange'], alpha=0.7, width=0.6)
+    ax2.set_ylabel('CPU Time (seconds)', fontsize=12)
+    ax2.set_title(f'Runtime Comparison (n={size:,})', fontsize=14)
+    ax2.grid(True, alpha=0.3, axis='y')
+    
+    # Add value labels on bars
+    for bar, runtime in zip(bars2, runtimes):
+        height = bar.get_height()
+        ax2.text(bar.get_x() + bar.get_width()/2., height + max(runtimes) * 0.01,
+                f'{runtime:.3f}s', ha='center', va='bottom', fontsize=10, weight='bold')
+    
+    plt.tight_layout()
+    plt.show(block=False)
+    plt.pause(0.1)
+    
+    # Detailed results
+    print("\n" + "="*80)
+    print(f"PERFORMANCE COMPARISON - DATASET SIZE: {size:,} ELEMENTS")
+    print("="*80)
+    print(f"Optimal threshold (S): {optimal_s}")
+    print(f"Maximum value in dataset: {size}")
+    print()
+    
+    # Calculate improvements
+    comp_improvement = ((original_comparisons - hybrid_comparisons) / original_comparisons) * 100
+    time_improvement = ((original_time - hybrid_time) / original_time) * 100
+    
+    print(f"{'Algorithm':<20} {'Comparisons':<15} {'CPU Time (s)':<15} {'Memory Usage':<15}")
+    print("-" * 80)
+    print(f"{'Hybrid Merge Sort':<20} {hybrid_comparisons:<15,} {hybrid_time:<15.4f} {'O(n)':<15}")
+    print(f"{'Original Merge Sort':<20} {original_comparisons:<15,} {original_time:<15.4f} {'O(n)':<15}")
+    print("-" * 80)
+    print(f"{'Improvement':<20} {comp_improvement:<14.2f}% {time_improvement:<14.2f}% {'Same':<15}")
+    print("="*80)
+    
+    if comp_improvement > 0:
+        print(f"✓ Hybrid algorithm reduces comparisons by {comp_improvement:.2f}%")
+    if time_improvement > 0:
+        print(f"✓ Hybrid algorithm improves runtime by {time_improvement:.2f}%")
+    
+    return {
+        'hybrid_comparisons': hybrid_comparisons,
+        'original_comparisons': original_comparisons,
+        'hybrid_time': hybrid_time,
+        'original_time': original_time,
+        'optimal_s': optimal_s,
+        'size': size
+    }
+
+def run_complete_analysis():
+    """Run the complete project analysis as specified"""
+    print("HYBRID MERGE SORT ANALYSIS PROJECT")
+    print("=" * 50)
+    print("Project Components:")
+    print("(a) ✓ Hybrid algorithm implementation")
+    print("(b) ✓ Data generation (1K to 10M)")
+    print("(c) Time complexity analysis:")
+    print("    (i) ✓ Fixed S, variable n")
+    print("    (ii) ✓ Fixed n, variable S") 
+    print("    (iii) ✓ Optimal S determination")
+    print("(d) ✓ Comparison with original Mergesort")
+    print("=" * 50)
+    
+    # Execution mode selection
+    print("\nExecution Options:")
+    print("1. Quick Analysis (reduced datasets, ~5-10 minutes)")
+    print("2. Full Analysis (complete datasets as per project, ~30-60 minutes)")
+    print("3. Custom Analysis (specify parameters)")
+    
+    while True:
+        try:
+            choice = input("\nSelect option (1-3): ").strip()
+            if choice in ['1', '2', '3']:
+                break
+            print("Please enter 1, 2, or 3")
+        except KeyboardInterrupt:
+            print("\nAnalysis cancelled.")
+            return None
+    
+    use_full_range = (choice == '2')
+    
+    if choice == '3':
+        print("\nCustom Analysis Settings:")
+        try:
+            max_size = int(input("Maximum array size (default 100000): ") or "100000")
+            test_s_value = int(input("S value for part (c)(i) (default 16): ") or "16")
+            use_full_range = False
+        except ValueError:
+            print("Invalid input, using defaults")
+            max_size = 100000
+            test_s_value = 16
+    else:
+        max_size = 10000000 if use_full_range else 500000
+        test_s_value = 16
+    
+    results = {}
+    
+    try:
+        # Part (c)(i): Fixed S, variable n
+        print(f"\n{'='*60}")
+        print("PART (C)(I): FIXED S, VARIABLE INPUT SIZE")
+        print(f"{'='*60}")
+        input("Press Enter to start analysis (c)(i)...")
+        
+        sizes, comparisons, times = analyze_fixed_s_variable_n(test_s_value, use_full_range)
+        results['part_ci'] = {'sizes': sizes, 'comparisons': comparisons, 'times': times}
+        
+        # Part (c)(ii): Fixed n, variable S
+        print(f"\n{'='*60}")
+        print("PART (C)(II): FIXED INPUT SIZE, VARIABLE S")
+        print(f"{'='*60}")
+        input("Press Enter to start analysis (c)(ii)...")
+        
+        test_size = min(max_size // 10, 100000)  # Reasonable size for S analysis
+        s_values, s_comparisons, s_times, best_s = analyze_fixed_n_variable_s(test_size, use_full_range)
+        results['part_cii'] = {
+            's_values': s_values, 
+            'comparisons': s_comparisons, 
+            'times': s_times,
+            'best_s': best_s
+        }
+        
+        # Part (c)(iii): Find optimal S
+        print(f"\n{'='*60}")
+        print("PART (C)(III): OPTIMAL S DETERMINATION")
+        print(f"{'='*60}")
+        input("Press Enter to start analysis (c)(iii)...")
+        
+        optimal_s = find_optimal_s_multiple_sizes()
+        results['part_ciii'] = {'optimal_s': optimal_s}
+        
+        # Part (d): Compare with original
+        print(f"\n{'='*60}")
+        print("PART (D): COMPARISON WITH ORIGINAL MERGESORT")
+        print(f"{'='*60}")
+        print(f"Using optimal S = {optimal_s}")
+        input("Press Enter to start final comparison...")
+        
+        comparison_results = compare_with_original_mergesort(optimal_s, max_size)
+        results['part_d'] = comparison_results
+        
+        # Final summary
+        print(f"\n{'='*80}")
+        print("ANALYSIS COMPLETE - SUMMARY")
+        print(f"{'='*80}")
+        print(f"Optimal S value determined: {optimal_s}")
+        print(f"Dataset size for final comparison: {max_size:,}")
+        print(f"Performance improvement achieved:")
+        print(f"  - Comparisons: {((comparison_results['original_comparisons'] - comparison_results['hybrid_comparisons']) / comparison_results['original_comparisons'] * 100):.2f}%")
+        print(f"  - Runtime: {((comparison_results['original_time'] - comparison_results['hybrid_time']) / comparison_results['original_time'] * 100):.2f}%")
+        print(f"{'='*80}")
+        
+        print("\nAll analysis plots are displayed.")
+        print("You can now close the plot windows or save them for your report.")
+        input("Press Enter when done viewing results...")
+        
+        return results
+        
+    except KeyboardInterrupt:
+        print("\nAnalysis interrupted by user.")
+        return results
+    except Exception as e:
+        print(f"\nError during analysis: {e}")
+        print("Partial results may be available.")
+        return results
+
+# Test functions
+def quick_correctness_test():
+    """Quick test to verify algorithm correctness"""
+    print("Running correctness verification...")
+    
+    test_cases = [
+        [5, 2, 8, 6, 1, 9, 4, 0, 3, 7],
+        [1],
+        [3, 1, 4, 1, 5, 9, 2, 6],
+        list(range(100, 0, -1)),  # Reverse sorted
+        list(range(100)),         # Already sorted
+        [42] * 50                 # All same elements
+    ]
+    
+    for i, test_arr in enumerate(test_cases):
+        original = test_arr.copy()
+        expected = sorted(test_arr)
+        
+        # Test with different S values
+        for s in [1, 5, 10, 25]:
+            reset_comparison_count()
+            result = hybrid_merge_sort(test_arr.copy(), s)
+            
+            if result != expected:
+                print(f"❌ FAILED: Test case {i+1}, S={s}")
+                print(f"Input: {original}")
+                print(f"Expected: {expected}")
+                print(f"Got: {result}")
+                return False
+    
+    print("✅ All correctness tests passed!")
+    return True
+
+if __name__ == "__main__":
+    # Set random seed for reproducible results
+    random.seed(42)
+    
+    print("HYBRID MERGE SORT PROJECT")
+    print("=" * 40)
+    print("1. Run correctness test")
+    print("2. Run complete project analysis") 
+    print("3. Run individual parts")
+    print("4. Quick demo")
+    
+    while True:
+        try:
+            choice = input("\nEnter choice (1-4): ").strip()
+            if choice in ['1', '2', '3', '4']:
+                break
+            print("Please enter 1, 2, 3, or 4")
+        except KeyboardInterrupt:
+            print("\nExiting...")
+            exit()
+    
+    if choice == '1':
+        quick_correctness_test()
+        
+    elif choice == '2':
+        if quick_correctness_test():
+            results = run_complete_analysis()
+            if results:
+                print(f"\nAnalysis completed successfully!")
+        
+    elif choice == '3':
+        print("\nIndividual Analysis Parts:")
+        print("a. Part (c)(i): Fixed S, variable n")
+        print("b. Part (c)(ii): Fixed n, variable S") 
+        print("c. Part (c)(iii): Find optimal S")
+        print("d. Part (d): Compare with original")
+        
+        sub_choice = input("Enter choice (a-d): ").strip().lower()
+        
+        if sub_choice == 'a':
+            s_val = int(input("Enter S value (default 16): ") or "16")
+            analyze_fixed_s_variable_n(s_val, False)
+        elif sub_choice == 'b':
+            n_val = int(input("Enter array size (default 50000): ") or "50000")
+            analyze_fixed_n_variable_s(n_val, False)
+        elif sub_choice == 'c':
+            optimal_s = find_optimal_s_multiple_sizes()
+            print(f"Recommended optimal S: {optimal_s}")
+        elif sub_choice == 'd':
+            s_val = int(input("Enter S value: "))
+            size_val = int(input("Enter array size (default 100000): ") or "100000")
+            compare_with_original_mergesort(s_val, size_val)
+            
+    elif choice == '4':
+        print("\nQuick Demo:")
+        test_arr = [64, 34, 25, 12, 22, 11, 90, 5]
+        print(f"Original array: {test_arr}")
+        
+        reset_comparison_count()
+        result = hybrid_merge_sort(test_arr.copy(), 4)
+        comps = get_comparison_count()
+        
+        print(f"Sorted array: {result}")
+        print(f"Comparisons with S=4: {comps}")
+        
+        reset_comparison_count()
+        original_result = original_merge_sort(test_arr.copy())
+        original_comps = get_comparison_count()
+        
+        print(f"Original merge sort comparisons: {original_comps}")
+        print(f"Improvement: {((original_comps - comps) / original_comps * 100):.1f}%")
+    
+    print("\nDone!")
